@@ -2,7 +2,7 @@
 #include <fstream>
 #include <stdint.h>
 
-#define SIZE_OUTPUT_BUF 100 * 1024 * 1024 // 100MB
+#define SIZE_OUTPUT_BUF 150 * 1024 * 1024 // 150MB
 
 struct game_chart_index
 {
