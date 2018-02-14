@@ -185,8 +185,8 @@ int process_chart_file(char *path, char *keysound_prefix)
 			int32_t size_output_buf = 0;
 			memset(output_buf, 0, SIZE_OUTPUT_BUF);
 
-			bss_end_pos[0] = -1;
-			bss_end_pos[1] = -1;
+			memset(keysounds, 0, sizeof(keysounds));
+			memset(bss_end_pos, -1, sizeof(bss_end_pos));
 			while ((int)p_chart - (int)chartdata < p_header->chart_index[i].size_chart + p_header->chart_index[i].pos_chart)
 			{
 				if (p_chart->timecode == 0x7fffffff) break;
