@@ -45,7 +45,8 @@ inline int32_t mixing_function(int32_t buf, int16_t input)
 #if 1
 	return buf + input;
 #else
-	// i can't find a better mixing functiong atm, leave this blank is the best choice
+	// definitly not working with multi keysounds mixing
+	return buf + input - (buf * input / 32768);
 #endif
 }
 
@@ -105,7 +106,8 @@ int32_t normalize_bgm(uint8_t *output_buf, int32_t size_output_buf)
 // only for input as 16bit 44100Hz stereo PCM
 int32_t mix_bgm(uint8_t *output_buf, int32_t size_output_buf, char *keysound_prefix, int16_t keysound_id, int32_t time)
 {
-	printf("\tadding keysound %08d at %08d\n", keysound_id, time);
+//	printf("\tadding keysound %08d at %08d\n", keysound_id, time);
+//	printf("\t%08d\t%08d\n", time, keysound_id);
 	if (keysound_id == 0)
 		return size_output_buf;
 	char path_keysound[260];
@@ -175,7 +177,7 @@ int process_chart_file(char *path, char *keysound_prefix)
 	dummyheader.bitpersample = 8 * sizeof(int16_t);// 16
 
 	unsigned char *output_buf = new unsigned char[SIZE_OUTPUT_BUF];
-	int j = 0;
+	int j = 0, total_keysound = 0;
 	for (i = 0; i < 12; i++)
 	{
 		if (p_header->chart_index[i].size_chart != 0)
@@ -187,39 +189,56 @@ int process_chart_file(char *path, char *keysound_prefix)
 
 			memset(keysounds, 0, sizeof(keysounds));
 			memset(bss_end_pos, -1, sizeof(bss_end_pos));
+			total_keysound = 0;
 			while ((int)p_chart - (int)chartdata < p_header->chart_index[i].size_chart + p_header->chart_index[i].pos_chart)
 			{
 				if (p_chart->timecode == 0x7fffffff) break;
+//				printf("%8d: %02X, %02X, %04X\n", p_chart->timecode, p_chart->command, p_chart->val1, p_chart->val2);
 
 				// check bss end point
 				for (j = 0; j < 2; j++)
 				{
-					if (bss_end_pos[j] != -1 && p_chart->timecode >= bss_end_pos[j])
+					if (bss_end_pos[j] != -1 && p_chart->timecode > bss_end_pos[j])
 					{
+						total_keysound++;
 						size_output_buf = mix_bgm(output_buf, size_output_buf, keysound_prefix, keysounds[7 + j * 8], bss_end_pos[j]);
 						bss_end_pos[j] = -1;
 					}
 				}
-				
+
 				switch (p_chart->command)
 				{
 				case 00:
 				case 01:
 					// mix keysound of keysounds[p_chart->val1]
 					size_output_buf = mix_bgm(output_buf, size_output_buf, keysound_prefix, keysounds[p_chart->val1 + 8 * (p_chart->command & 1)], p_chart->timecode);
+					total_keysound++;
 					if (p_chart->val1 == 07 && p_chart->val2 != 0)
 					{
 						// lane 0x07 CN == BSS
+#if 0
+						// is this correct? i saw some song has some weird bss/cn length rather than other chart which will have 1ms offset different causing different generated files, so idk
+						bss_end_pos[0 + (p_chart->command & 1)] = p_chart->val2 + p_chart->timecode - 1;
+#else
 						bss_end_pos[0 + (p_chart->command & 1)] = p_chart->val2 + p_chart->timecode;
+#endif
 					}
 					break;
 				case 02:
 				case 03:
 					keysounds[p_chart->val1 + 8 * (p_chart->command & 1)] = p_chart->val2;
+					if (p_chart->val1 == 07 && bss_end_pos[0 + (p_chart->command & 1)] != -1 && p_chart->timecode == bss_end_pos[0 + (p_chart->command & 1)])
+					{
+						// i don't know if it's correct but let's try to put this shit here
+						total_keysound++;
+						size_output_buf = mix_bgm(output_buf, size_output_buf, keysound_prefix, keysounds[7 + (p_chart->command & 1) * 8], bss_end_pos[0 + (p_chart->command & 1)]);
+						bss_end_pos[0 + (p_chart->command & 1)] = -1;
+					}
 					break;
 				case 07:
 					// mix keysound of p_chart->val2
 					size_output_buf = mix_bgm(output_buf, size_output_buf, keysound_prefix, p_chart->val2, p_chart->timecode);
+					total_keysound++;
 					break;
 				default:
 					break;
@@ -230,6 +249,7 @@ int process_chart_file(char *path, char *keysound_prefix)
 
 			// write sound buffer to file
 			size_output_buf = normalize_bgm(output_buf, size_output_buf);
+			printf("\t%s_%02d: %d\n", path, i, total_keysound);
 			dummyheader.size_data = size_output_buf;
 			dummyheader.size_wave = size_output_buf + 36;
 			std::fstream output;
