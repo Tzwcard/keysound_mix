@@ -191,6 +191,16 @@ int process_chart_file(char *path, char *keysound_prefix)
 			{
 				if (p_chart->timecode == 0x7fffffff) break;
 
+				// check bss end point
+				for (j = 0; j < 2; j++)
+				{
+					if (bss_end_pos[j] != -1 && p_chart->timecode >= bss_end_pos[j])
+					{
+						size_output_buf = mix_bgm(output_buf, size_output_buf, keysound_prefix, keysounds[7 + j * 8], bss_end_pos[j]);
+						bss_end_pos[j] = -1;
+					}
+				}
+				
 				switch (p_chart->command)
 				{
 				case 00:
@@ -214,17 +224,7 @@ int process_chart_file(char *path, char *keysound_prefix)
 				default:
 					break;
 				}
-				
-				// check bss end point
-				for (j = 0; j < 2; j++)
-				{
-					if (bss_end_pos[j] != -1 && p_chart->timecode >= bss_end_pos[j])
-					{
-						size_output_buf = mix_bgm(output_buf, size_output_buf, keysound_prefix, keysounds[7 + j * 8], bss_end_pos[j]);
-						bss_end_pos[j] = -1;
-					}
-				}
-				
+
 				p_chart++;
 			}
 
